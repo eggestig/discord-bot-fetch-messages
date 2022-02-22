@@ -1,0 +1,13 @@
+{
+  "size": 1,
+  "messages": [
+    {
+      "id": "945806238858481664",
+      "channelId": "934097641720148018",
+      "authorId": "934093843228393562",
+      "createdTimestamp": 1645568179574,
+      "content": "",
+      "type": "APPLICATION_COMMAND"
+    }
+  ]
+}

@@ -1,0 +1,207 @@
+{
+  "userInput": {
+    "whitelist": {
+      "channels": [],
+      "messages": {
+        "words": [],
+        "authorsId": [],
+        "types": [],
+        "intervals": [
+          {
+            "startDate": 0,
+            "endDate": 4800000000000
+          }
+        ],
+        "authorId": []
+      }
+    },
+    "blacklist": {
+      "channels": [],
+      "messages": {
+        "words": [],
+        "authorsId": [],
+        "types": [],
+        "intervals": [],
+        "authorId": []
+      }
+    }
+  },
+  "channels": {},
+  "messages": {
+    "maxMessagesPerFile": 1000,
+    "millisecondsInSecond": 1000,
+    "floatPrecision": 2,
+    "maxMessagesPerDiscordFetch": 100,
+    "debugMessageMultiplier": 1000,
+    "fetchesToLog": 3,
+    "save": {
+      "folder": "saveFiles/Messages",
+      "name": "Ember_Sword_Word_Messages",
+      "fileType": "json"
+    }
+  },
+  "buffer": {
+    "size": 20,
+    "messagesToLog": 5,
+    "save": {
+      "folder": "saveFiles/Buffer",
+      "name": "buffer",
+      "fileType": "json"
+    }
+  },
+  "words": {
+    "regex": "[ \\n\\r]",
+    "save": {
+      "folder": "saveFiles/Words",
+      "name": "Word_Frequency",
+      "fileType": "json"
+    }
+  },
+  "terminal": {
+    "paddings": [
+      3,
+      20,
+      9,
+      20,
+      26,
+      20
+    ],
+    "names": [
+      "Top",
+      "Words",
+      "Freq",
+      "Channel ID",
+      "Last Message Date",
+      "Last Message ID"
+    ],
+    "top": 25
+  },
+  "spreadsheet": {
+    "id": "1UkU3U41TWu0tgKZHLK-NLmmhZAroVX6ftRBiQkZAA_0",
+    "version": "v4",
+    "access_type": "offline",
+    "top": 25,
+    "scopes": [
+      "https://www.googleapis.com/auth/spreadsheets"
+    ],
+    "token": {
+      "access_token": "ya29.A0ARrdaM9yrLuNNCqklSB4_5Rvs0IMoHXXH1YTNqPw2yn-SnWvQLWdx3UpKYW9xsjJcYCnBR43ors5Vs33KVoCRm0VHZvSI46lGrd1_2Xs6ERZ-fEnl-vXPu9BVmVQ7ErfAkbbqX45Y72EacKFoOjiDM7bOzok",
+      "refresh_token": "1//0cWmBTa1uz71OCgYIARAAGAwSNwF-L9IrbspFZXCi6Em_SdnraKh9aEBSJWdZG5z0SIAMVM2RdIudXbxjrfj8_43_VYeiHtSPDMA",
+      "scope": "https://www.googleapis.com/auth/spreadsheets",
+      "token_type": "Bearer",
+      "expiry_date": 1645039542555
+    },
+    "credentials": {
+      "installed": {
+        "client_id": "1036123145934-39ni657k92bee82t0n8o9av5gsesdr24.apps.googleusercontent.com",
+        "project_id": "discord-338913",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_secret": "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",
+        "redirect_uris": [
+          "urn:ietf:wg:oauth:2.0:oob",
+          "http://localhost"
+        ]
+      }
+    },
+    "dataRange": "A2:O",
+    "creationSettingsSheets": {
+      "title": "Ember Sword test1",
+      "display": {
+        "names": [
+          "Year",
+          "Month",
+          "Week",
+          "Day",
+          "Custom"
+        ],
+        "ids": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "initData": [
+          [
+            "Word",
+            "Frequency",
+            "Last message ID",
+            "Last Channel ID",
+            "Last Author ID",
+            "Last Created",
+            "Last Type",
+            "Last message content"
+          ]
+        ]
+      },
+      "input": {
+        "names": [
+          "Input Normal",
+          "Input Custom"
+        ],
+        "ids": [
+          5,
+          6
+        ],
+        "initData": [
+          [
+            "",
+            "",
+            "WHITE",
+            "LIST",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "BLACK",
+            "LIST",
+            "",
+            "",
+            ""
+          ],
+          [],
+          [
+            "",
+            "Channel ID",
+            "Word",
+            "Author",
+            "Type",
+            "Date Start",
+            "Date End",
+            "",
+            "Channel ID",
+            "Word",
+            "Author",
+            "Type",
+            "Date Start",
+            "Date End",
+            ""
+          ]
+        ]
+      }
+    },
+    "deleteRequest": {
+      "dimension": "ROWS",
+      "startIndex": 1,
+      "maxWords": 1000
+    },
+    "updateRequest": {
+      "valueInputOption": "RAW",
+      "includeValuesInResponse": "true",
+      "majorDimension": "ROWS"
+    },
+    "inputRequest": {
+      "dataRange": "B4:O",
+      "valueRenderOption": "UNFORMATTED_VALUE",
+      "majorDimension": "COLUMNS"
+    }
+  },
+  "discord": {
+    "token": "OTM0MDkzODQzMjI4MzkzNTYy.YerErg.lC7YAarFLIP6vbNX6zy1Trz9Lec",
+    "clientId": "934093843228393562",
+    "guildId": "818889099469127691"
+  }
+}

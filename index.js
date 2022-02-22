@@ -1,8 +1,10 @@
-const fs = require('fs');
-const { Client, Collection, Intents, MessageActionRow, MessageButton  } = require('discord.js');
-const { token } = require('./config.json');
+const fs 					= require('fs');
+const { Client, Intents  } 	= require('discord.js'); 
 
-const client = new Client({ intents: [Intents.FLAGS.GUILDS] });
+/* Local */
+const SETTINGS 				= require('./commands/methods/misc.js');
+
+const client = new Client({ intents: [ Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES ] });
 
 //Events
 const eventFiles = fs.readdirSync('./events').filter(file => file.endsWith('.js'));
@@ -17,4 +19,4 @@ for (const file of eventFiles) {
 }
 
 //Start bot
-client.login(token);
+client.login(SETTINGS.getSettings().discord.token);

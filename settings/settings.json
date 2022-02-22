@@ -84,25 +84,8 @@
     "scopes": [
       "https://www.googleapis.com/auth/spreadsheets"
     ],
-    "token": {
-      "access_token": "ya29.A0ARrdaM9yrLuNNCqklSB4_5Rvs0IMoHXXH1YTNqPw2yn-SnWvQLWdx3UpKYW9xsjJcYCnBR43ors5Vs33KVoCRm0VHZvSI46lGrd1_2Xs6ERZ-fEnl-vXPu9BVmVQ7ErfAkbbqX45Y72EacKFoOjiDM7bOzok",
-      "refresh_token": "1//0cWmBTa1uz71OCgYIARAAGAwSNwF-L9IrbspFZXCi6Em_SdnraKh9aEBSJWdZG5z0SIAMVM2RdIudXbxjrfj8_43_VYeiHtSPDMA",
-      "scope": "https://www.googleapis.com/auth/spreadsheets",
-      "token_type": "Bearer",
-      "expiry_date": 1645039542555
-    },
+    "token": {},
     "credentials": {
-      "installed": {
-        "client_id": "1036123145934-39ni657k92bee82t0n8o9av5gsesdr24.apps.googleusercontent.com",
-        "project_id": "discord-338913",
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_secret": "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",
-        "redirect_uris": [
-          "urn:ietf:wg:oauth:2.0:oob",
-          "http://localhost"
-        ]
       }
     },
     "dataRange": "A2:O",
@@ -200,8 +183,8 @@
     }
   },
   "discord": {
-    "token": "OTM0MDkzODQzMjI4MzkzNTYy.YerErg.lC7YAarFLIP6vbNX6zy1Trz9Lec",
-    "clientId": "934093843228393562",
-    "guildId": "818889099469127691"
+    "token": "",
+    "clientId": "",
+    "guildId": ""
   }
 }

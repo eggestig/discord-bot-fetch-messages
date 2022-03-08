@@ -44,7 +44,7 @@ function sendBuffer() {
     }
 
     /* APPEND/WRITE/CREATE */
-    const dateName    = `${date.getFullYear()}_${date.getMonth() + 1}_${date.getDate()}_${date.getHours()}_${date.getMinutes()}_${date.getSeconds()}`;
+    const dateName    = SETTINGS.getDateFileString(new Date());
     const filePathPre = `${SETTINGS.getSettings().messages.save.folder}/${SETTINGS.getSettings().messages.save.name}_${dateName}`;
     
     let initialLength = 0;

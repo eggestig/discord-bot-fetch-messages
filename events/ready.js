@@ -1,30 +1,49 @@
+/* Local */
 const { saveWordFreqFromLocalFiles, sortWordFrequency } = require('../commands/saveMessages.js');
-const { update } = require('../commands/methods/sheet.js');
+const { update } 										= require('../commands/methods/sheet.js');
+const SETTINGS 											= require('../commands/methods/misc.js')
 
-const SETTINGS = require('../commands/methods/misc.js')
-
-const updateInterval  = 3;   //seconds
-const consoleInterval = 1;    //seconds
+const updateInterval  = SETTINGS.getSettings().timings.updateLoop.updateInterval;   //seconds
+const consoleInterval = SETTINGS.getSettings().timings.updateLoop.consoleInterval;   //seconds
 let lastUpdate 		  = 0;    //seconds
 
 async function updateOnLoop() {
 	setTimeout(async function run() {
 		console.log(`Seconds since update: ${(lastUpdate += consoleInterval)}s`); 
 		if(lastUpdate == updateInterval) {
-			//update(saveWordFreqFromLocalFiles, sortWordFrequency);
-			console.log("Updating...!");
+			console.log();
+			console.log("+---------------------------+");
+			console.log(`|     Automatic Update!     |`);
+			console.log(`| ${(new Date()).toISOString()}`.padding(27) + ` |`);
+			console.log("+---------------------------+");
 			const startTime = Date.now();
 			
 			await update(saveWordFreqFromLocalFiles, sortWordFrequency);
 
-			console.log("Updated! Time: " + SETTINGS.calculateTimeDifference(startTime, Date.now()) + "s");
+			console.log();
+			console.log("+---------------------------+");
+			console.log(`|     Automatic Update!     |`);
+			console.log(`| Time: ${SETTINGS.calculateTimeDifference(startTime, Date.now())}s`.padding(27) + ` |`);
+			console.log("+---------------------------+");
 			lastUpdate = 0;
 		}
 		setTimeout(async () => {
 			await run();
-		}, consoleInterval * 1_000);
-	}, consoleInterval * 1_000);
+		}, consoleInterval * SETTINGS.getSettings().messages.millisecondsInSecond);
+	}, consoleInterval * SETTINGS.getSettings().messages.millisecondsInSecond);
 }
+
+// Pads a string with white spaces to be n characters long
+String.prototype.padding = function(n)
+{       const c = ' ';
+        var val = this.valueOf();
+        if ( Math.abs(n) <= val.length ) {
+                return val;
+        }
+        var m = Math.max((Math.abs(n) - this.length) || 0, 0);
+        var pad = Array(m + 1).join(String(c || ' ').charAt(0));
+        return (n < 0) ? pad + val : val + pad;
+};
 
 module.exports = {
 	name: 'ready',
@@ -33,7 +52,7 @@ module.exports = {
 		//Bot is initializing
 		console.log(`Initializing!`);
 
-		//updateOnLoop();
+		updateOnLoop();
 
 		//Bot is ready to use
 		console.log(`Ready! Logged in as ${client.user.tag}`);

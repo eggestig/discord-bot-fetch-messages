@@ -45,7 +45,7 @@ async function authorize(credentials) {
 
     // Check if we have previously stored a token, and that the token is still valid
     let token = SETTINGS.getSettings().spreadsheet.token;
-    if (!token || (token && ((new Date).toISOString() >= token.expiry_date))) {
+    if (!token || (token && ((new Date()).getTime() >= (new Date(token.expiry_date)).getTime()))) {
       token                         = await getNewToken(oAuth2Client);
       const newSettings             = SETTINGS.getSettings();
       newSettings.spreadsheet.token = token;
@@ -212,7 +212,7 @@ function displayFilters() {
     console.log();
     await updateNormal(saveWordFreqFromLocalFiles, sortWordFrequency); 
     /* Custom sheets */
-    await updateCustom(saveWordFreqFromLocalFiles, sortWordFrequency);
+    //await updateCustom(saveWordFreqFromLocalFiles, sortWordFrequency);
     //console.log("Sheets have been updated!");
 
     resolve();
@@ -237,7 +237,6 @@ function displayFilters() {
   console.log(`|                           |`);
   console.log("+---------------------------+");
 
-  //displayFilters();
   saveWordFreqFromLocalFiles();
   customWords = sortWordFrequency(JSON.parse(read(wordFreqPath), null, 2)).result.words;
 
@@ -270,7 +269,7 @@ function displayFilters() {
 
     console.log("User input for normal sheets: ");
     //Sheet Year
-    const yearSeconds = (1000 * 60 * 5 * 1 * 4);
+    const yearSeconds = (SETTINGS.getSettings().messages.millisecondsInSecond * SETTINGS.getSettings().timings.spreadsheet.year);
     //Get word frequencies (YEAR)
     await callApi(fetchAndSaveSpreadsheetInput, {name: SETTINGS.getSettings().spreadsheet.creationSettingsSheets.input.names[0]});
     
@@ -301,7 +300,7 @@ function displayFilters() {
 
 
     //Sheet Month
-    const monthSeconds = (1000 * 60 * 5 * 1 * 3);
+    const monthSeconds = (SETTINGS.getSettings().messages.millisecondsInSecond * SETTINGS.getSettings().timings.spreadsheet.month);
     //Get word frequencies (MONTH)
     await callApi(fetchAndSaveSpreadsheetInput, {name: SETTINGS.getSettings().spreadsheet.creationSettingsSheets.input.names[0]});
     
@@ -332,7 +331,7 @@ function displayFilters() {
 
     
     //Sheet Week
-    const weekSeconds = (1000 * 60 * 5 * 1 * 2);
+    const weekSeconds = (SETTINGS.getSettings().messages.millisecondsInSecond * SETTINGS.getSettings().timings.spreadsheet.week);
     //Get word frequencies (WEEK)
     await callApi(fetchAndSaveSpreadsheetInput, {name: SETTINGS.getSettings().spreadsheet.creationSettingsSheets.input.names[0]});
     
@@ -363,7 +362,7 @@ function displayFilters() {
 
     
     //Sheet Day
-    const daySeconds = (1000 * 60 * 5 * 1 * 1);
+    const daySeconds = (SETTINGS.getSettings().messages.millisecondsInSecond * SETTINGS.getSettings().timings.spreadsheet.day);
     //Get word frequencies (DAY)
     await callApi(fetchAndSaveSpreadsheetInput, {name: SETTINGS.getSettings().spreadsheet.creationSettingsSheets.input.names[0]});
     
@@ -1345,14 +1344,8 @@ async function fetchAndSaveHelper(auth, request) {
             reject(false);
           }
           const newSettings = parseInput(res.data.values);
-          //console.log("PARSED INPUT: ");
-          //console.log(newSettings.userInput);
           SETTINGS.updateSettings(newSettings);
           SETTINGS.refreshSettings();
-          //console.log("USER INPUT FILE: ");
-          //displayFilters();
-          
-
           resolve(true);
       });   
     } catch (err) {
@@ -1459,7 +1452,7 @@ function parseInput(input) {
   } 
 
   //Intervals
-  let whitelistIntervals = [{startDate: 0, endDate: 4800000000000}]; // 2122-02-08T13:20:00.000Z
+  let whitelistIntervals = [];
   let whitelistLoops     = 0;
   if(input[4])
     whitelistLoops = input[4].length;
@@ -1468,15 +1461,17 @@ function parseInput(input) {
 
   for(let i = 0; i < whitelistLoops; i++) {
     let interval = {startDate: 0, endDate: 4800000000000}; // 2122-02-08T13:20:00.000Z
-
-    if(input[4] && input[4][i] && input[4][i].length > 0) 
+    if(input[4] && input[4][i] && input[4][i] > 0) 
       interval.startDate = input[4][i];
 
-    if(input[5] && input[5][i] && input[5][i].length > 0)
+    if(input[5] && input[5][i] && input[5][i] > 0)
       interval.endDate = input[5][i];
 
     whitelistIntervals.push(interval);
   }
+
+  if(whitelistIntervals.length == 0)
+    whitelistIntervals = [{startDate: 0, endDate: 4800000000000}]; // 2122-02-08T13:20:00.000Z
 
   settings.userInput.whitelist.messages.intervals = whitelistIntervals;
 
@@ -1546,10 +1541,10 @@ function parseInput(input) {
   for(let i = 0; i < blacklistLoops; i++) {
     let interval = {startDate: 0, endDate: 4800000000000}; // 2122-02-08T13:20:00.000Z
 
-    if(input[11] && input[11][i] && input[11][i].length > 0) 
+    if(input[11] && input[11][i] && input[11][i] > 0) 
       interval.startDate = input[11][i];
 
-    if(input[12] && input[12][i] && input[12][i].length > 0)
+    if(input[12] && input[12][i] && input[12][i] > 0)
       interval.endDate = input[12][i];
 
     blacklistIntervals.push(interval);

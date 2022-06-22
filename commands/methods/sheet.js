@@ -194,25 +194,34 @@ function displayFilters() {
 }
 
 
+
+
+
+
+
+
+
+
 /**
  * Update the spreadsheet
  * 
  * 
  */
  async function update(saveWordFreqFromLocalFiles, sortWordFrequency) {
-    if(SETTINGS.getSettings().spreadsheet.id == "") {
-      await callApi(createSpreadsheet, "Ember Sword Messages Stats");
-      SETTINGS.refreshSettings();
-    }
+  if(SETTINGS.getSettings().spreadsheet.id == "") {
+    await callApi(createSpreadsheet, "Ember Sword Messages Stats");
+    SETTINGS.refreshSettings();
+  }
 
   return new Promise(async (resolve, rejectRes) => {
     /* Normal sheets */
     console.log();
     console.log("*******************************************************************************************");
     console.log();
-    await updateNormal(saveWordFreqFromLocalFiles, sortWordFrequency); 
+    //await updateNormal(saveWordFreqFromLocalFiles, sortWordFrequency); 
+
     /* Custom sheets */
-    //await updateCustom(saveWordFreqFromLocalFiles, sortWordFrequency);
+    await updateCustom(saveWordFreqFromLocalFiles, sortWordFrequency);
     //console.log("Sheets have been updated!");
 
     resolve();
@@ -232,24 +241,33 @@ function displayFilters() {
   await callApi(fetchAndSaveSpreadsheetInput, {name: SETTINGS.getSettings().spreadsheet.creationSettingsSheets.input.names[1]});
   SETTINGS.refreshSettings();
 
+  displayFilters();
+
   console.log("+---------------------------+");
   console.log(`|          CUSTOM           |`);
   console.log(`|                           |`);
   console.log("+---------------------------+");
 
-  saveWordFreqFromLocalFiles();
+  const freqRes = saveWordFreqFromLocalFiles();
   customWords = sortWordFrequency(JSON.parse(read(wordFreqPath), null, 2)).result.words;
 
-  console.log(`+---------------------------+`);
-  console.log(`| Total Unique Words ${customWords.length}`.padding(27) + ` |`);
-  console.log("+---------------------------+");
+  console.log(`+----------------------------+`);
+  console.log(`| Total Unique Words: ${freqRes.totalUniqueWords}`.padding(28) + ` |`);
+  console.log("+----------------------------+");
+  console.log(`+----------------------------+`);
+  console.log(`| Total Words: ${freqRes.totalWords}`.padding(28) + ` |`);
+  console.log("+----------------------------+");
+  console.log(`+----------------------------+`);
+  console.log(`| Total Messages:     ${freqRes.totalMessages}`.padding(28) + ` |`);
+  console.log("+----------------------------+");
   console.log();
   console.log("*******************************************************************************************");
   console.log();
 
   //Sheet Custom
   return new Promise(async (resolve, reject) => {
-    resolve(await updateHelper(customWords.slice(customWords.length - SETTINGS.getSettings().spreadsheet.top).reverse(), {id: sheets.ids[4], name: sheets.names[4]}));
+    console.log(Math.max(0, customWords.length - SETTINGS.getSettings().spreadsheet.top));
+    resolve(await updateHelper(customWords.slice(Math.max(0, customWords.length - SETTINGS.getSettings().spreadsheet.top)).reverse(), {id: sheets.ids[4], name: sheets.names[4]}));
   });
 };
 
@@ -262,10 +280,12 @@ function displayFilters() {
   const sheets        = SETTINGS.getSettings().spreadsheet.creationSettingsSheets.display;
   const wordFreqPath  = `${SETTINGS.getSettings().words.save.folder}/${SETTINGS.getSettings().words.save.name}.${SETTINGS.getSettings().words.save.fileType}`;
   let normalWords     = [];
+  let normalWordsLen = 0;
 
   return new Promise(async (resolve, reject) => {
     SETTINGS.getSettings().userInput.blacklist.intervals = [];
     endDate = Date.now();
+    let freqRes;
 
     console.log("User input for normal sheets: ");
     //Sheet Year
@@ -278,25 +298,40 @@ function displayFilters() {
     SETTINGS.updateSettings(SETTINGS.getSettings());
     SETTINGS.refreshSettings();
 
-    console.log("+--------------------------+");
-    console.log(`|           YEAR           |`);
-    console.log(`| ${(new Date(endDate - yearSeconds)).toISOString()} |`);
-    console.log(`|            --            |`);
-    console.log(`| ${(new Date(endDate)).toISOString()} |`);
-    console.log("+--------------------------+");
+    displayFilters();
     
-    //displayFilters();
-    saveWordFreqFromLocalFiles();
+    console.log("+---------------------------+");
+    console.log(`|           YEAR            |`);
+    console.log(`| ${(new Date(endDate - yearSeconds)).toISOString()}  |`);
+    console.log(`|            --             |`);
+    console.log(`| ${(new Date(endDate)).toISOString()}  |`);
+    console.log("+---------------------------+");
+    
+    freqRes = saveWordFreqFromLocalFiles();
     normalWords = sortWordFrequency(JSON.parse(read(wordFreqPath), null, 2)).result.words;
 
-    console.log(`+---------------------------+`);
-    console.log(`| Total Unique Words ${normalWords.length}`.padding(27) + ` |`);
-    console.log("+---------------------------+");
+    console.log(`+----------------------------+`);
+    console.log(`| Total Unique Words: ${freqRes.totalUniqueWords}`.padding(28) + ` |`);
+    console.log("+----------------------------+");
+    console.log(`+----------------------------+`);
+    console.log(`| Total Words: ${freqRes.totalWords}`.padding(28) + ` |`);
+    console.log("+----------------------------+");
+    console.log(`+----------------------------+`);
+    console.log(`| Total Messages:     ${freqRes.totalMessages}`.padding(28) + ` |`);
+    console.log("+----------------------------+");
     console.log();
     console.log("*******************************************************************************************");
     console.log();
 
-    await updateHelper(normalWords.slice(normalWords.length - SETTINGS.getSettings().spreadsheet.top).reverse(), {id: sheets.ids[0], name: sheets.names[0]});
+    console.log("Words len: " + normalWords.length);
+
+    normalWordsLen = normalWords.length;
+    if(normalWordsLen > SETTINGS.getSettings().spreadsheet.top)
+      normalWordsLen -= SETTINGS.getSettings().spreadsheet.top;
+
+    console.log("Words len fixed: " + normalWordsLen);
+
+    await updateHelper(normalWords.slice(-normalWordsLen).reverse(), {id: sheets.ids[0], name: sheets.names[0]});
 
 
     //Sheet Month
@@ -316,18 +351,31 @@ function displayFilters() {
     console.log(`| ${(new Date(endDate)).toISOString()}  |`);
     console.log("+---------------------------+");
     
-    //displayFilters();
-    saveWordFreqFromLocalFiles();
+    freqRes = saveWordFreqFromLocalFiles();
     normalWords = sortWordFrequency(JSON.parse(read(wordFreqPath), null, 2)).result.words;
 
-    console.log(`+---------------------------+`);
-    console.log(`| Total Unique Words ${normalWords.length}`.padding(27) + ` |`);
-    console.log("+---------------------------+");
+    console.log(`+----------------------------+`);
+    console.log(`| Total Unique Words: ${freqRes.totalUniqueWords}`.padding(28) + ` |`);
+    console.log("+----------------------------+");
+    console.log(`+----------------------------+`);
+    console.log(`| Total Words: ${freqRes.totalWords}`.padding(28) + ` |`);
+    console.log("+----------------------------+");
+    console.log(`+----------------------------+`);
+    console.log(`| Total Messages:     ${freqRes.totalMessages}`.padding(28) + ` |`);
+    console.log("+----------------------------+");
     console.log();
     console.log("*******************************************************************************************");
     console.log();
 
-    await updateHelper(normalWords.slice(normalWords.length - SETTINGS.getSettings().spreadsheet.top).reverse(), {id: sheets.ids[1], name: sheets.names[1]});
+    console.log("Words len: " + normalWords.length);
+
+    normalWordsLen = normalWords.length;
+    if(normalWordsLen > SETTINGS.getSettings().spreadsheet.top)
+      normalWordsLen -= SETTINGS.getSettings().spreadsheet.top;
+
+    console.log("Words len fixed: " + normalWordsLen);
+
+    await updateHelper(normalWords.slice(-normalWordsLen).reverse(), {id: sheets.ids[1], name: sheets.names[1]});
 
     
     //Sheet Week
@@ -340,25 +388,34 @@ function displayFilters() {
     SETTINGS.updateSettings(SETTINGS.getSettings());
     SETTINGS.refreshSettings();
 
-    console.log("+--------------------------+");
-    console.log(`|           WEEK           |`);
-    console.log(`| ${(new Date(endDate - weekSeconds)).toISOString()} |`);
-    console.log(`|            --            |`);
-    console.log(`| ${(new Date(endDate)).toISOString()} |`);
-    console.log("+--------------------------+");
+    console.log("+---------------------------+");
+    console.log(`|           WEEK            |`);
+    console.log(`| ${(new Date(endDate - weekSeconds)).toISOString()}  |`);
+    console.log(`|            --             |`);
+    console.log(`| ${(new Date(endDate)).toISOString()}  |`);
+    console.log("+---------------------------+");
     
-    //displayFilters();
-    saveWordFreqFromLocalFiles();
+    freqRes = saveWordFreqFromLocalFiles();
     normalWords = sortWordFrequency(JSON.parse(read(wordFreqPath), null, 2)).result.words;
 
-    console.log(`+---------------------------+`);
-    console.log(`| Total Unique Words ${normalWords.length}`.padding(27) + ` |`);
-    console.log("+---------------------------+");
+    console.log(`+----------------------------+`);
+    console.log(`| Total Unique Words: ${freqRes.totalUniqueWords}`.padding(28) + ` |`);
+    console.log("+----------------------------+");
+    console.log(`+----------------------------+`);
+    console.log(`| Total Words: ${freqRes.totalWords}`.padding(28) + ` |`); 
+    console.log("+----------------------------+");
+    console.log(`+----------------------------+`);
+    console.log(`| Total Messages:     ${freqRes.totalMessages}`.padding(28) + ` |`);
+    console.log("+----------------------------+");
     console.log();
     console.log("*******************************************************************************************");
     console.log();
 
-    await updateHelper(normalWords.slice(normalWords.length - SETTINGS.getSettings().spreadsheet.top).reverse(), {id: sheets.ids[2], name: sheets.names[2]});
+    normalWordsLen = normalWords.length;
+    if(normalWordsLen > SETTINGS.getSettings().spreadsheet.top)
+      normalWordsLen -= SETTINGS.getSettings().spreadsheet.top;
+
+    await updateHelper(normalWords.slice(-normalWordsLen).reverse(), {id: sheets.ids[2], name: sheets.names[2]});
 
     
     //Sheet Day
@@ -378,18 +435,27 @@ function displayFilters() {
     console.log(`| ${(new Date(endDate)).toISOString()}  |`);
     console.log("+---------------------------+");
     
-    //displayFilters();
-    saveWordFreqFromLocalFiles();
+    freqRes = saveWordFreqFromLocalFiles();
     normalWords = sortWordFrequency(JSON.parse(read(wordFreqPath), null, 2)).result.words;
 
-    console.log(`+---------------------------+`);
-    console.log(`| Total Unique Words ${normalWords.length}`.padding(27) + ` |`);
-    console.log("+---------------------------+");
+    console.log(`+----------------------------+`);
+    console.log(`| Total Unique Words: ${freqRes.totalUniqueWords}`.padding(28) + ` |`);
+    console.log("+----------------------------+");
+    console.log(`+----------------------------+`);
+    console.log(`| Total Words: ${freqRes.totalWords}`.padding(28) + ` |`);
+    console.log("+----------------------------+");
+    console.log(`+----------------------------+`);
+    console.log(`| Total Messages:     ${freqRes.totalMessages}`.padding(28) + ` |`);
+    console.log("+----------------------------+");
     console.log();
     console.log("*******************************************************************************************");
     console.log();
 
-    await updateHelper(normalWords.slice(normalWords.length - SETTINGS.getSettings().spreadsheet.top).reverse(), {id: sheets.ids[3], name: sheets.names[3]});
+    normalWordsLen = normalWords.length;
+    if(normalWordsLen > SETTINGS.getSettings().spreadsheet.top)
+      normalWordsLen -= SETTINGS.getSettings().spreadsheet.top;
+
+    await updateHelper(normalWords.slice(-normalWordsLen).reverse(), {id: sheets.ids[3], name: sheets.names[3]});
 
 
     //Resolve

@@ -25,7 +25,7 @@ function read(path, log) {
         return data;
     } catch(err) {
         if(log)
-            console.error(`'${name}' ${err}`);
+            console.error(`'${path}' ${err}`);
     }
     return null;
 }

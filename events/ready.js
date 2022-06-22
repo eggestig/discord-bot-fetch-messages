@@ -1,5 +1,5 @@
 /* Local */
-const { saveWordFreqFromLocalFiles, sortWordFrequency } = require('../commands/saveMessages.js');
+const { saveWordFreqFromLocalFiles, sortWordFrequency } = require('../commands/save.js');
 const { update } 										= require('../commands/methods/sheet.js');
 const SETTINGS 											= require('../commands/methods/misc.js')
 
@@ -52,7 +52,17 @@ module.exports = {
 		//Bot is initializing
 		console.log(`Initializing!`);
 
-		updateOnLoop();
+		// set the status (online/dnd/invisible/away) (needs to be run every time)
+		client.user.setStatus("invisible")	
+
+		// set the avatar pfp if needs changing (only needs to be run once)
+		/*
+		client.user.setAvatar('./saveFiles/avatar.jpeg')
+			.then(user => console.log(`New avatar set!`))
+			.catch(console.error);
+		*/
+
+		//updateOnLoop();
 
 		//Bot is ready to use
 		console.log(`Ready! Logged in as ${client.user.tag}`);

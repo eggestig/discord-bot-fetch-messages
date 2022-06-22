@@ -37,9 +37,7 @@ const SETTINGS                      = require('./methods/misc.js');
         //Push channel to result if it covers the above conditions 
 
         if(channel.permissionsFor(interaction.guild.me).has("VIEW_CHANNEL") 
-            && (   channel.type == "GUILD_TEXT" 
-                || channel.type == "GUILD_PUBLIC_THREAD" 
-                || channel.type == "GUILD_PRIVATE_THREAD")) {
+            && channel.type == "GUILD_TEXT") {
             console.log(`| ${channel.name}`.padding(29) + ` |`);
             result.push(channel);
         }
@@ -68,20 +66,33 @@ const SETTINGS                      = require('./methods/misc.js');
  */
 async function saveMessages(interaction, totalMessages) {
     const startTime = Date.now();
+    const msDate = interaction.options.getInteger("ms");
+
+    let tempDate;
+    if(interaction.options.getInteger("ms")) {
+        tempDate = new Date(msDate);
+    } else {
+        tempDate = new Date();
+        tempDate.setFullYear(1999, 0, 1); //Default (will get all messages)
+    }
+    
+    // Ignore h/m/s/ms of the date
+    tempDate.setHours(0, 0, 0, 0);
 
     //Fetch channels
     console.log();
     console.log(`Fetching channels...`);
     const channelRes = await getChannels(interaction);
-
     //Delete saved messages
     console.log();
-    deleteSavedMessagesFiles();
+    console.log(`Deleting... From: ${tempDate.toDateString()} - ${(new Date()).toDateString()}`);
+    deleteSavedMessagesFiles(tempDate.getTime());
     
     //Fetch messages
     console.log();
-    console.log(`Fetch and save messages...`);
-    const savedMessagesRes = await saveMessagesHelper(channelRes.result.channels, totalMessages);
+    console.log(`Fetch and save messages... From: ${tempDate.toDateString()} - ${(new Date()).toDateString()}`);
+
+    const savedMessagesRes = await saveMessagesHelper(channelRes.result.channels, tempDate.getTime());
     //console.log(`Total messages saved: ${savedMessagesRes.totalMessagesSaved}`);
 
     //Update spreadsheet
@@ -95,7 +106,7 @@ async function saveMessages(interaction, totalMessages) {
 
     //Logs
     console.log();
-    console.log(`${"Total time for /saveMessages".padding(30)} | ${total}s | ${savedMessagesRes.totalMessagesSaved}`);
+    console.log(`${"Total time for /save".padding(30)} | ${total}s | ${savedMessagesRes.totalMessagesSaved}`);
 
     return {quantity: savedMessagesRes.totalMessagesSaved, runtime: total};
 };
@@ -104,108 +115,90 @@ async function saveMessages(interaction, totalMessages) {
  * Get messages helper function
  * 
  * @param {TextChannel[]} channels Channels to fetch messages from
- * @param {number} total Up to total messages to fetch (No limit, but will save a file for every x messages)
+ * @param {number} dateMs Up to this unix date in ms to fetch
  * @returns {Promise} Array of parsed messages
  */
-async function saveMessagesHelper(channels, total) {
+async function saveMessagesHelper(channels, dateMs) {
     let totalMessagesSaved   = 0;
     const maxMessagesPerFile = SETTINGS.getSettings().messages.maxMessagesPerFile;
-    let result               = {length: 0, messages: []};
     let messagesChunk        = null;
     let messagesToFetch      = 0;
-
-    if(total > 0) 
-        deleteSavedMessagesFiles();
+    const filePre = `${SETTINGS.getSettings().messages.save.folder}`;
+    const startTime = Date.now();
+    
+    //let getMessagesOptions    = {limit: maxMessagesPerFile, totalMessages: 0};
 
     for(let i = 0; i < channels.length; i++) {
         const channel       = channels[i];
         let before          = null;
         let channelMessages = 0;
+        let options         = {};
+
+        const initialDate = new Date();
+        initialDate.setHours(0, 0, 0, 0); // Ignore h/m/s/ms
         
         console.log(`+---------------------------------------------------+`);
         console.log(`| Fetching Messages: `+ `${channel.name}`.padding(30) +` |`);
         console.log(`+---------------------------------------------------+`);
 
-        let lastFileObj = null;
-        let files = fs.readdirSync(`${SETTINGS.getSettings().messages.save.folder}/`);
+        options.dateMs = dateMs;
+        options.dateMsCurrent = initialDate.getTime();
 
-        if(files && files.length > 0) {
-            files.sort();
-            lastFileObj = JSON.parse(read(`${SETTINGS.getSettings().messages.save.folder}/${files[files.length - 1]}`));
-            if(lastFileObj) {
-                result.messages = lastFileObj.messages;
-                result.length = lastFileObj.length;
-            }
-        }
-
-        while(((total < maxMessagesPerFile) ? messagesToFetch = total : messagesToFetch = maxMessagesPerFile) && messagesToFetch > 0) {
-            if(result.length >= maxMessagesPerFile) {
-                const sliceArr = result.messages.slice(0, maxMessagesPerFile);
-                if(lastFileObj && lastFileObj.length < maxMessagesPerFile) {
-                    console.log(`+--------------- Append to last file ---------------+`);
-                    write(`${SETTINGS.getSettings().messages.save.folder}/${files[files.length - 1]}`, JSON.stringify({length: maxMessagesPerFile, messages: sliceArr}, null, 2));
-                    lastFileObj.length = maxMessagesPerFile;
-                } else {
-                    console.log(`+---------------- Write to new file ----------------+`);
-                    writeToFile({length: maxMessagesPerFile, messages: sliceArr}, false);
-                }
-
-                totalMessagesSaved += maxMessagesPerFile;
-
-                if(result.length - maxMessagesPerFile > 0) {
-                    result.messages = result.messages.slice(maxMessagesPerFile, maxMessagesPerFile + result.length);
-                    result.length   = result.length - maxMessagesPerFile;
-                } else {
-                    result.messages = [];
-                    result.length   = 0;
-                }
-            }
-
-            let getMessagesOptions    = {limit: messagesToFetch, totalMessages: channelMessages};
-            if(before != null)
-                getMessagesOptions.before = before;
+        while(options.dateMs <= options.dateMsCurrent) {
+        
+            console.log(`|                    [${SETTINGS.getDateFileString(new Date(options.dateMsCurrent))}]                   |`);
+            console.log(`|                                                   |`);
+            
+            if(before != null) options.before = before;
                 
+            messagesChunk = await getMessages(channel, options);
 
-            messagesChunk = await getMessages(channel, getMessagesOptions);
-
-            result.length   += messagesChunk.length;
             channelMessages += messagesChunk.length;
-            before           = messagesChunk.before;
-            total           -= messagesChunk.length;
 
-            messagesChunk.messages.forEach((message) => {
-                result.messages.push(message);
-            })
+            
+            //Save
+            if(messagesChunk.length > 0) {
+                let result = {};
+                totalMessagesSaved += messagesChunk.length;
+                let file = read(`${filePre}/${SETTINGS.getDateFileString(new Date(options.dateMsCurrent))}.${SETTINGS.getSettings().messages.save.fileType}`);
+                if(file) {
+                    console.log(`+--------------- Append to last file ---------------+`);
+                    
+                    let fileObj = JSON.parse(file, null, 2);
+                    fileObj.length += messagesChunk.length;
+                    messagesChunk.messages.forEach((message) => {
+                        fileObj.messages.push(message);
+                    });
 
-            //No more messages to fetch
-            if(messagesChunk.length < messagesToFetch) {
+                    result = fileObj;                    
+                } else {
+                    result = { length: messagesChunk.length, messages: messagesChunk.messages };
+                    console.log(`+---------------- Write to new file ----------------+`);
+                }
+                write(`${filePre}/${SETTINGS.getDateFileString(new Date(options.dateMsCurrent + (86000 * 1000)))}.${SETTINGS.getSettings().messages.save.fileType}`, JSON.stringify(result, null, 2));
+            }
+            //Checks if there are more messages to check
+            if(!messagesChunk.moreMessages)
                 break;
-            } else {
 
-            }
+            options.dateMsCurrent = messagesChunk.dateMsCurrent;
         }
-        let ignoreLine = false;
-        if(result.length > 0) {
-            if(lastFileObj && lastFileObj.length < SETTINGS.getSettings().messages.maxMessagesPerFile) {
-                console.log(`+--------------- Append to last file ---------------+`);
-                write(`${SETTINGS.getSettings().messages.save.folder}/${files[files.length - 1]}`, result);
-            } else {
-                console.log(`+---------------- Write to new file ----------------+`);
-                writeToFile(result, false);
-            }
-
-            ignoreLine = true;
-
-            totalMessagesSaved += result.length;
-
-            result.length = 0;
-            result.messages = [];
-
-        } else {
-            console.log(`+---------------------------------------------------+`);
-        }
+        console.log(`+---------------------------------------------------+`);
         console.log(`| Messages fetched and saved: ${channelMessages}`.padding(51) + ` |`);
         console.log(`+---------------------------------------------------+`);
+        console.log();
+
+            
+        console.log("+----------------------------------------------------+");
+        console.log(`| Current Date                                       |`);
+        console.log(`| ${(new Date()).toTimeString()}`.padding(52) + ` |`);
+        console.log(`|                                                    |`);
+        console.log(`| Command Runtime                                    |`);
+        console.log(`| ${(Date.now() - startTime) / 1000.0} seconds`.padding(52) + ` |`);
+        console.log(`|                                                    |`);
+        console.log(`| Channels progression                               |`);
+        console.log(`| ${i}/${channels.length}`.padding(52) + ` |`);
+        console.log("+----------------------------------------------------+");
         console.log();
         /*
         //Debug setting code, duplicates total messages by multiplier
@@ -233,46 +226,57 @@ async function saveMessagesHelper(channels, total) {
 async function getMessages(channel, options) {
     let result          = [];
     let maxMessages     = SETTINGS.getSettings().messages.maxMessagesPerDiscordFetch;
-    let fetchedMessages = 0;
     let before          = null;
+    let moreMessages    = true;
 
-    if(!options.before)
-        options = {limit: options.limit, totalMessages: options.totalMessages};
+    let afterBeforeDate = null;
 
-    if (options.limit <= maxMessages) { //One fetch
-        const messages = Array.from((await channel.messages.fetch({limit: options.limit})).values());
-        result = result.concat(messages);    
-    } else { //Multiple fetches
-        let rounds      = (options.limit / 100) + (options.limit % 100 ? 1 : 0);
-        options.limit   = maxMessages;
+    options.limit   = maxMessages;
 
-        for (let x = 0; x < rounds; x++) {
-            const messages   = Array.from((await channel.messages.fetch(options)).values());
-            fetchedMessages += messages.length;
-            
-            messages.forEach((message) => {
+    let totalMsgs = 0;
+
+    let fetch = true;
+    while(fetch) {
+        let messagesLength = 0;
+        const messages   = Array.from((await channel.messages.fetch(options)).values());
+        let skippedMsg = false;
+        
+
+        messages.forEach((message) => {
+            if(options.dateMsCurrent <= message.createdTimestamp) {
                 result.push(message);
-            });
-
-            let fetchedMessagesLog = maxMessages;
-            if(messages.length < maxMessages) 
-                fetchedMessagesLog = messages.length;
-
-            if((Math.floor(((options.totalMessages + fetchedMessages) / 100))) % SETTINGS.getSettings().messages.fetchesToLog == 0) {
-                console.log(`| Total Messages Fetched: ${options.totalMessages + fetchedMessages}`.padding(51) + ` |`);
+                before = message.id;
+                messagesLength++
+                totalMsgs++;
+            } else {
+                if(!skippedMsg) {
+                    let tempDate = new Date(message.createdTimestamp);
+                    tempDate.setHours(0, 0, 0, 0);
+                    afterBeforeDate = tempDate.getTime();
+                    skippedMsg = true;
+                }
+                fetch = false;
             }
-                
-            if(messages.length > 1)
-                before = messages[messages.length - 1].id; //ID element of the last message
-            options.before = before;
-            await SETTINGS.sleep(1000); // Sleep for 1 second per fetch so Discord API doesn't possible rate limit
+        });
 
-            if(messages.length < 100) 
-                break;
-        };
-    };  
+        if((Math.floor(((options.totalMessages + messagesLength) / 100))) % SETTINGS.getSettings().messages.fetchesToLog == 0 || !fetch) {
+            console.log(`| Total Messages Fetched: ${totalMsgs}`.padding(51) + ` |`);
+        }
 
-    return {length: result.length, messages: result, before: before};
+        await SETTINGS.sleep(1000); // Sleep for up to 1 second per fetch so Discord API doesn't possible rate limit
+        
+        if(messages.length == 0) {
+            moreMessages = false; 
+            fetch        = false;
+        }
+
+        options.before = before;
+    };
+
+    if(afterBeforeDate == null)
+        afterBeforeDate = options.dateMsCurrent - (86400 * 1000); // Previous day date
+
+    return {length: result.length, messages: result, before: before, moreMessages: moreMessages, dateMsCurrent: afterBeforeDate};
 };
 
 /**
@@ -391,6 +395,172 @@ function parseMessages(messages) {
 /*      Words      */
 /* --------------- */
 
+/**
+ * Save message info of words
+ * 
+ * @returns {Number} Number of word frequencies
+ */
+function saveWordInfoFromLocalFiles() {
+    SETTINGS.refreshSettings();
+
+    const wordFreqFilePath   = SETTINGS.getFilePath(SETTINGS.getSettings().words.save);    
+    const messagesFolderPath = `${SETTINGS.getSettings().messages.save.folder}`;
+    let totalWords           = 0;
+    let totalMessages        = 0;
+
+    let result = {};
+    let fileFreq = read(wordFreqFilePath);
+    if(!fileFreq)
+        return null;
+
+    let words = JSON.parse(fileFreq, null, 2);
+
+    console.log("Words to save info about");
+    console.log(Object.keys(words));
+
+    let messagesFiles = fs.readdirSync(`${messagesFolderPath}/`);
+    messagesFiles.sort();
+
+    Object.keys(words).forEach((word) => {
+        words[word].info = {
+            users: {},
+            channels: {},
+            dates: {
+                months: {},
+                days: {},
+                hours: {}
+            }
+        };
+    });
+    
+    for(let fileCount = 0; fileCount < messagesFiles.length; fileCount++) {
+        let file = read(`${messagesFolderPath}/${messagesFiles[fileCount]}`);
+        console.log(`${messagesFolderPath}/${messagesFiles[fileCount]}`);
+        
+
+        let messages = [];
+
+        if(file) 
+            messages = parseMessages((JSON.parse(file, null, 2)).messages);
+
+        messages.forEach((message) => {
+            let wordsInMessage = getWords(message);
+            wordsInMessage.forEach((wordInMessage) => {
+                Object.keys(words).forEach((word) => {
+                    if(word == wordInMessage) {
+
+                        //users
+                        if(words[word].info.users[message.authorId] != null) {
+                            words[word].info.users[message.authorId]++;
+                        } else {
+                            words[word].info.users[message.authorId] = 1;
+                        }
+
+                        //channels
+                        if(words[word].info.channels[message.channelId] != null) {
+                            words[word].info.channels[message.channelId]++;
+                        } else {
+                            words[word].info.channels[message.channelId] = 1;
+                        }
+
+                        //dates
+                        let date = new Date();
+                        let messageDate = new Date(message.createdTimestamp);
+                        
+                        date.setTime(0);
+                        date.setFullYear(messageDate.getFullYear());
+
+                        //dates - month
+                        date.setMonth(messageDate.getMonth());
+                        if(words[word].info.dates.months[date.toISOString()] != null) {
+                            words[word].info.dates.months[date.toISOString()]++;
+                        } else {
+                            words[word].info.dates.months[date.toISOString()] = 1;
+                        }
+
+                        //dates - day
+                        date.setDate(messageDate.getDate());
+                        if(words[word].info.dates.days[date.toISOString()] != null) {
+                            words[word].info.dates.days[date.toISOString()]++;
+                        } else {
+                            words[word].info.dates.days[date.toISOString()] = 1;
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    //Parse users
+
+    Object.keys(words).forEach((word) => {
+        wordFreq = {
+            "1": {
+                start: 1,
+                end: 1,
+                freq: 0
+            },
+            "2": {
+                start: 2,
+                end: 4,
+                freq: 0
+            },
+            "3-4": {
+                start: 3,
+                end: 4,
+                freq: 0
+            },
+            "5-9": {
+                start: 5,
+                end: 9,
+                freq: 0
+            },
+            "10-24": {
+                start: 10,
+                end: 24,
+                freq: 0
+            },
+            "25+": {
+                start: 25,
+                end: 999_999,
+                freq: 0
+            }
+        };
+
+        Object.values(words[word].info.users).forEach((userFreq) => {
+            Object.keys(wordFreq).forEach((interval) => {
+                if(wordFreq[interval].start <= userFreq && userFreq <= wordFreq[interval].end)
+                    wordFreq[interval].freq++;
+            });
+        });
+        words[word].info.users = wordFreq;
+
+        console.log(word);
+        console.log(wordFreq);
+
+
+    });
+
+    //words = sortWordFrequency(words);
+    console.log("sale:");
+    console.log(words["sale"].info);
+    
+    console.log("land:");
+    console.log("  users:    " + Object.keys(words["land"].info.users).length);
+    console.log("  channels: " + Object.keys(words["land"].info.channels).length);
+    console.log("  months:   " + Object.keys(words["land"].info.dates.months).length);
+    console.log("  days:     " + Object.keys(words["land"].info.dates.days).length);
+
+    console.log("sale:");
+    console.log("  users:    " + Object.keys(words["sale"].info.users).length);
+    console.log("  channels: " + Object.keys(words["sale"].info.channels).length);
+    console.log("  months:   " + Object.keys(words["sale"].info.dates.months).length);
+    console.log("  days:     " + Object.keys(words["sale"].info.dates.days).length);
+
+    //totalWords = saveWordFreq(result);
+    return {totalWords: totalWords, totalMessages: totalMessages};
+}
+
 
 /**
  * Save word frequencies using messages from local files
@@ -402,14 +572,22 @@ function saveWordFreqFromLocalFiles() {
 
     const wordFreqFilePath   = SETTINGS.getFilePath(SETTINGS.getSettings().words.save);    
     const messagesFolderPath = `${SETTINGS.getSettings().messages.save.folder}`;
-    let totalWords = 0;
+    let totalWords           = 0;
+    let totalMessages        = 0;
 
-    let result = {};let fileFreq = read(wordFreqFilePath);
+    let result = {};
+    let subResult = {};
+    let fileFreq = read(wordFreqFilePath);
     if(fileFreq)
         fs.unlinkSync(wordFreqFilePath);
 
     let messagesFiles = fs.readdirSync(`${messagesFolderPath}/`);
     messagesFiles.sort();
+
+    let startTime         = Date.now();
+    let tempTotalMessages = 0;
+    let tempTotalWords    = 0;
+
 
     for(let fileCount = 0; fileCount < messagesFiles.length; fileCount++) {
         let file = read(`${messagesFolderPath}/${messagesFiles[fileCount]}`);
@@ -420,10 +598,43 @@ function saveWordFreqFromLocalFiles() {
             messages = parseMessages((JSON.parse(file, null, 2)).messages);
 
         //word freq count
-        result = convertToWordFrequency(messages, result).result;
+        const wordFreq = convertToWordFrequency(messages, subResult);
+        subResult      = wordFreq.result;
+        totalWords    += wordFreq.totalWords;
+        totalMessages += wordFreq.totalMessages;
+
+        tempTotalMessages += wordFreq.totalMessages;
+        tempTotalWords    += wordFreq.totalWords;
+
+        if(fileCount % 50 == 0 || (fileCount == messagesFiles.length - 1)) {
+            console.log(`| files counted: ${fileCount}/${messagesFiles.length}`.padding(27) + ` |`);
+            startTime         = Date.now();
+            tempTotalMessages = 0;
+            tempTotalWords    = 0;
+        }
+            
+        if(fileCount % 1 == 0) {
+            if(subResult != null) {
+                Object.keys(subResult).forEach((word) => {
+                    if(!result[word]) { 
+                        result[word] = subResult[word];
+                    } else {
+                        result[word].frequency += subResult[word].frequency;
+                        if(result[word].lastMessage.createdTimestamp < subResult[word].lastMessage.createdTimestamp)
+                            result[word].lastMessage = subResult[word].lastMessage;
+                    }
+                })
+            }
+            subResult = {};
+        
+
+        }
     }
-    totalWords = saveWordFreq(result);
-    return totalWords;
+
+    const totalUniqueWords = saveWordFreq(result);
+    console.log(`| Saving...`.padding(27) + ` |`);
+    console.log(`+---------------------------+`);
+    return {totalUniqueWords: totalUniqueWords, totalWords: totalWords, totalMessages: totalMessages};
 }
 
 /**
@@ -468,16 +679,20 @@ function saveWordFreq(wordFreq) {
 function convertToWordFrequency(messages, result) {
     let words;
     let totalWords = 0;
+    let totalMessages = 0;
     
     messages.forEach((msg) => {
-        words = getWords(msg);
+        words = getWords(msg);  
         const parsedWordsRes = parseWords(result, words, msg);
 
+        if(Object.keys(parsedWordsRes.words).length > 0)
+            totalMessages++;
+
         result = parsedWordsRes.words;
-        totalWords = parsedWordsRes.total;
+        totalWords += parsedWordsRes.total;
     });
 
-    return {result: result, totalWords: totalWords};
+    return {result: result, totalWords: totalWords, totalMessages: totalMessages};
 };
 
 /**
@@ -557,6 +772,7 @@ function parseWords(out, words, message) {
             //If whitelisted & not blacklisted
             if(whitelist && !blacklist) {
                 message.createdTimestamp = (new Date(message.createdTimestamp)).toISOString();
+                message.content = message.content.replace(/\n/g, "[\\n]");
                 if(out[word] != null) {
                     out[word].frequency++;
                     out[word].lastMessage = message;
@@ -601,72 +817,59 @@ function getWords(message) {
  * Get words
  * 
  * @param {Object} result Messages to write to file
- * @param {Object} freshFiles delete all files in folder if true, if not false it will create a new file correctly
+ * @param {Object} dateMs date in unix ms to append to file
  */
-function writeToFile(result, freshFiles) {
-    const date              = new Date();
+function writeToFile(result, dateMs) {
+    const date              = new Date(dateMs);
     const fileNameDate      = SETTINGS.getDateFileString(date);
     const folderPath        = `${SETTINGS.getSettings().messages.save.folder}`;
-    const filePathPre       = `${folderPath}/${SETTINGS.getSettings().messages.save.name}_${fileNameDate}`;
-    const messagesPerFile   = SETTINGS.getSettings().messages.maxMessagesPerFile;
-    
-    let files = fs.readdirSync(`${folderPath}/`);
-    files.sort();
+    const filePath          = `${folderPath}/${SETTINGS.getSettings().messages.save.name}_${fileNameDate}.${SETTINGS.getSettings().messages.save.fileType}`;
 
-    if(freshFiles && files) {
-        deleteSavedMessagesFiles();
-    };
-
-    let i = 0;
-    let filesWritten = 0;
-    
-    if(!freshFiles && files)
-        i = files.length; //New file, doesn't matter how few or many messages in the latest file
-
-    let remainingMessages = result.length;
-    while(remainingMessages > 0) {
-        let length = messagesPerFile;
-        if(remainingMessages - messagesPerFile < 0)
-            length = remainingMessages;
-
-        const messageChunk = result.messages.slice(filesWritten * messagesPerFile, (filesWritten * messagesPerFile) + length);
-        filesWritten++;
-
-        let object = {
-            length: messageChunk.length,
-            messages: messageChunk
-        };
-
-        //MAX 100_000 * 1_000_000 messages per file = 100_000_000_000 total messages
-        //MAX 100_000 * 1_000     messages per file = 100_000_000     total messages
-        const number = ("0000" + i).slice (-5); 
-        const filePath = `${filePathPre}_${number}.${SETTINGS.getSettings().messages.save.fileType}`;
-        if(!write(filePath, JSON.stringify(object, null, 2)))
-            console.error(`Manual Error: writeToFile(result, freshFiles) failed to write - Path: ${filePath}`);
-        
-        remainingMessages -= length;
-        i++; //Next file
+    if(fs.existsSync(filePath)) {
+        let file = JSON.parse(read(filePath), null, 2);
+        result.length += file.length;
+        result.messages.concat(file.messages);
     }
+
+    
+    if(!write(filePath, JSON.stringify(result, null, 2)))
+        console.error(`Manual Error: writeToFile(result, dateMs) failed to write - Path: ${filePath}`);
+
 };
 
 /**
  * Delete all saved message files
  * 
  */
-function deleteSavedMessagesFiles() {
+function deleteSavedMessagesFiles(dateMs) {
     const folderPath = `${SETTINGS.getSettings().messages.save.folder}`;
     let files        = fs.readdirSync(`${folderPath}/`);
 
+    let deletedFiles = 0;
+    files.sort();
+
+    console.log(`+------------------------+`);
+    console.log(`| Deleting message files |`);
+    console.log(`+------------------------+`);
+
     if(files) {
         files.forEach((file) => {
-            fs.unlinkSync(`${folderPath}/${file}`);
+            let currentMs = dateMs;
+            while(currentMs < Date.now()) {
+                if(file == `${SETTINGS.getDateFileString(new Date(currentMs))}.${SETTINGS.getSettings().messages.save.fileType}`) {
+                    console.log(`| ${file}         |`);
+                    fs.unlinkSync(`${folderPath}/${file}`);
+                    deletedFiles++;
+                }
+                currentMs += 86400 * 1000; // Add 1 day
+            }
         })
     };
-    console.log(`+-----------------------+`);
-    console.log(`| Deleted message files |`);
-    console.log(`+-----------------------+`);
-    console.log(`| ${files.length}`.padding(24) + `|`);
-    console.log(`+-----------------------+`);
+    console.log(`+------------------------+`);
+    console.log(`| Deleted message files  |`);
+    console.log(`+------------------------+`);
+    console.log(`| ${deletedFiles}`.padding(25) + `|`);
+    console.log(`+------------------------+`);
     console.log();
     console.log("*******************************************************************************************");
 }
@@ -719,9 +922,14 @@ String.prototype.padding = function(n)
 
 module.exports = {
 	data: new SlashCommandBuilder()
-	  	.setName("savemessages")
-	  	.setDescription("Save Messages"),
+	  	.setName("save")
+	  	.setDescription("-")
+        .addIntegerOption(option => 
+            option.setName("ms")
+                .setDescription("-")
+                .setRequired(false)),
 	async execute(interaction) {
+
         await interaction.deferReply().then(async () => {
             const result = await saveMessages(interaction);
             console.log();
@@ -732,6 +940,6 @@ module.exports = {
     getChannels,                //Fetch channels that is in whitelist and not in blacklist
     saveWordFreqFromLocalFiles, //Save word frequencies from local messages files (words are parsed)
     sortWordFrequency,          //Sort word frequencies
-    deleteSavedMessagesFiles,   //Delete all saved messages
-    printToTerminal             //Print word frequencies to the terminal
+    printToTerminal,            //Print word frequencies to the terminal
+    saveWordInfoFromLocalFiles  //Save word info from word local files
 };

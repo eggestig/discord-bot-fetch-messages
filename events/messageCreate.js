@@ -32,47 +32,31 @@ function handleMessage(message) {
 function sendBuffer() {
     const date = new Date();
 
-    const messages = msgHandler.getBuffer(); 
+    const buffer = msgHandler.getBuffer(); 
     msgHandler.emptyBuffer();
 
     let files = fs.readdirSync(`${SETTINGS.getSettings().messages.save.folder}`);
-    let messagesFile = null;
+    if(files) files.sort();
 
-    if(files && files.length > 0) {
-        files.sort();
-        messagesFile = JSON.parse(read(`${SETTINGS.getSettings().messages.save.folder}/${files[files.length - 1]}`), null, 2);
-    }
-
-    /* APPEND/WRITE/CREATE */
-    const dateName    = SETTINGS.getDateFileString(new Date());
-    const filePathPre = `${SETTINGS.getSettings().messages.save.folder}/${SETTINGS.getSettings().messages.save.name}_${dateName}`;
-    
-    let initialLength = 0;
-    let initialMessages = [];
-
-    if(messagesFile) {
-        initialLength  = messagesFile.length;
-        initialMessages = messagesFile.messages;
-    }
-
-    let object = {
-        length: initialLength + messages.size,
-        messages: initialMessages.concat(messages.messages)
-    };
-
-    if(object.length > SETTINGS.getSettings().messages.maxMessagesPerFile || files.length == 0) {
-        //MAX 100_000 * 1_000_000 messages per file = 100_000_000_000 total messages
-        //MAX 100_000 * 1_000     messages per file = 100_000_000     total messages
-        const number = ("0000" + files.length).slice(-5);
-        write(`${filePathPre}_${number}.${SETTINGS.getSettings().messages.save.fileType}`, JSON.stringify(messages, null, 2));
-    } else {
-        write(`${SETTINGS.getSettings().messages.save.folder}/${files[files.length - 1]}`, JSON.stringify(object, null, 2));
-    }
+    buffer.messages.forEach((message) => {
+        let toWrite = null;
+        files.forEach((file) => {
+            if(toWrite == null && file == `${SETTINGS.getDateFileString(new Date(message.createdTimestamp))}.${SETTINGS.getSettings().messages.save.fileType}`) {
+                toWrite = JSON.parse(read(`${SETTINGS.getSettings().messages.save.folder}/${file}`), null, 2);
+                toWrite.length++;
+                toWrite.messages.push(message);  
+            }
+        });
+        if(!toWrite) {
+            toWrite = {length: 1, messages: [message]};
+        }
+        write(`${SETTINGS.getSettings().messages.save.folder}/${SETTINGS.getDateFileString(new Date(message.createdTimestamp))}.${SETTINGS.getSettings().messages.save.fileType}`, JSON.stringify(toWrite, null, 2));
+    });
 }
 
 module.exports = {
 	name: 'messageCreate',
-	execute(message) {        
+	execute(message) {      
         handleMessage(message);
     }
 };

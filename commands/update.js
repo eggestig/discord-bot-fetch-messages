@@ -1,19 +1,19 @@
 const { SlashCommandBuilder }                           = require('@discordjs/builders');
 const { update }                                        = require('./methods/sheet.js');
 const SETTINGS                                          = require('./methods/misc.js');
-const { saveWordFreqFromLocalFiles, sortWordFrequency } = require('./saveMessages.js');
+const { saveWordFreqFromLocalFiles, sortWordFrequency, saveWordInfoFromLocalFiles } = require('./save.js');
 
 module.exports = {
 	data: new SlashCommandBuilder()
 	  	.setName("update")
-	  	.setDescription("Save Words and their frequency from local files"),
+	  	.setDescription("-"),
     async execute(interaction) {
         const startTime = Date.now();
 
-        
-
         await interaction.deferReply().then(async () => {
             await update(saveWordFreqFromLocalFiles, sortWordFrequency);
+            
+            //saveWordInfoFromLocalFiles();
             
             //Reply
             const totalTime = SETTINGS.calculateTimeDifference(startTime, Date.now());

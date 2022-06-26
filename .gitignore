@@ -107,4 +107,4 @@ dist
 node_modules
 .env
 config.json
-#The config.json needs to be manually created in your project, see readme.md
+saveFiles

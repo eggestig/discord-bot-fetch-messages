@@ -27,35 +27,6 @@ const rest = new REST({ version: '9' }).setToken(SETTINGS.getSettings().discord.
 			{ body: commands },
 		);
 
-		let permissions = [];
-		result.forEach((command) => {
-			permissions.push({
-				"id": command.id,
-				"permissions": [
-					{
-						"id": "451264105165225995", //Thanabus citizen
-						"type": 1,
-						"permission": false
-					},
-					{
-						"id": "491195420597420033", //BSS role
-						"type": 1,
-						"permission": true
-					},
-					{
-						"id": "137937860400513024", //Eggestig user
-						"type": 2,
-						"permission": true
-					}
-				]
-			});
-		})
-			
-		await rest.put(
-			Routes.guildApplicationCommandsPermissions(SETTINGS.getSettings().discord.clientId, SETTINGS.getSettings().discord.guildId),
-			{ body: permissions }
-		);	
-
 		console.log('Successfully reloaded application (/) commands.');
 	} catch (error) {
 		console.error(error);

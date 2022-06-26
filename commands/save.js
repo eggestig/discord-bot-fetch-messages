@@ -6,6 +6,7 @@ const fs                                                = require('fs');
 const { write, read }               = require('./methods/fileHandler.js');
 const {update, parseMessageJson }   = require('./methods/sheet.js');
 const SETTINGS                      = require('./methods/misc.js');
+const { channel } = require('diagnostics_channel');
 
 
 /* --------------- */
@@ -98,7 +99,7 @@ async function saveMessages(interaction, totalMessages) {
     //Update spreadsheet
     console.log();
     console.log(`Updating spreadsheet...`);
-    await update(saveWordFreqFromLocalFiles, sortWordFrequency);
+    await update(saveWordFreqFromLocalFiles, sortWordFrequency, saveWordInfoFromLocalFiles, interaction);
     console.log(`Spreadsheet updated`);
 
     //Total time
@@ -400,7 +401,7 @@ function parseMessages(messages) {
  * 
  * @returns {Number} Number of word frequencies
  */
-function saveWordInfoFromLocalFiles() {
+function saveWordInfoFromLocalFiles(interaction) {
     SETTINGS.refreshSettings();
 
     const wordFreqFilePath   = SETTINGS.getFilePath(SETTINGS.getSettings().words.save);    
@@ -418,20 +419,35 @@ function saveWordInfoFromLocalFiles() {
     console.log("Words to save info about");
     console.log(Object.keys(words));
 
+
     let messagesFiles = fs.readdirSync(`${messagesFolderPath}/`);
     messagesFiles.sort();
-
     Object.keys(words).forEach((word) => {
         words[word].info = {
             users: {},
-            channels: {},
+            channels: {
+						},
             dates: {
-                months: {},
-                days: {},
-                hours: {}
+							days: {}
             }
         };
     });
+
+		let startDate = new Date(SETTINGS.getSettings().userInput.whitelist.messages.intervals[0].startDate); //Only takes into account the first starting interval
+		let endDate   = new Date(SETTINGS.getSettings().userInput.whitelist.messages.intervals[0].endDate);   //Same here (if any)
+		if(endDate.getTime() == SETTINGS.getSettings().endDateDefault)
+			endDate = new Date();
+		let dateTemp = new Date();
+		dateTemp.setTime(0);
+		dateTemp.setFullYear(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+
+		while(dateTemp.getTime() < endDate.getTime()) {
+			Object.keys(words).forEach((word) => {
+        words[word].info.dates.days[dateTemp.toISOString()] = 0
+			});
+			dateTemp.setTime(dateTemp.getTime() + 86400000);
+		}
+		
     
     for(let fileCount = 0; fileCount < messagesFiles.length; fileCount++) {
         let file = read(`${messagesFolderPath}/${messagesFiles[fileCount]}`);
@@ -441,55 +457,51 @@ function saveWordInfoFromLocalFiles() {
         let messages = [];
 
         if(file) 
-            messages = parseMessages((JSON.parse(file, null, 2)).messages);
+					messages = parseMessages((JSON.parse(file, null, 2)).messages);
 
+				let ttt = 0;
+				let startTime = new Date();
+				let time = startTime;
         messages.forEach((message) => {
-            let wordsInMessage = getWords(message);
-            wordsInMessage.forEach((wordInMessage) => {
-                Object.keys(words).forEach((word) => {
-                    if(word == wordInMessage) {
+					if(ttt++ % 100 == 0) {
+						let timeDiff  = (new Date(Date.now() - time.getTime())).getTime() / 1000.0
+						let timeDiff2 = (new Date(Date.now() - startTime.getTime())).getTime() / 1000.0
+						console.log(ttt + "/" + messages.length + " | current: " + timeDiff + "s | total: " + (timeDiff2 / 60.0) + "min");
+						time = new Date();
+					}
 
-                        //users
-                        if(words[word].info.users[message.authorId] != null) {
-                            words[word].info.users[message.authorId]++;
-                        } else {
-                            words[word].info.users[message.authorId] = 1;
-                        }
+					let wordsInMessage = getWords(message);
+					wordsInMessage.forEach((wordInMessage) => {
+							Object.keys(words).forEach((word) => {
+									if(word == wordInMessage) {
+											//users
+											if(words[word].info.users[message.authorId] != null) {
+													words[word].info.users[message.authorId]++;
+											} else {
+													words[word].info.users[message.authorId] = 1;
+											}
 
-                        //channels
-                        if(words[word].info.channels[message.channelId] != null) {
-                            words[word].info.channels[message.channelId]++;
-                        } else {
-                            words[word].info.channels[message.channelId] = 1;
-                        }
+											//channels
+											if(words[word].info.channels[message.channelId] != null) {
+													words[word].info.channels[message.channelId].freq++;
+											} else {
+													words[word].info.channels[message.channelId] = {name: interaction.guild.channels.cache.find(channel => channel.id == message.channelId).name, freq: 1}
+											}
 
-                        //dates
-                        let date = new Date();
-                        let messageDate = new Date(message.createdTimestamp);
-                        
-                        date.setTime(0);
-                        date.setFullYear(messageDate.getFullYear());
-
-                        //dates - month
-                        date.setMonth(messageDate.getMonth());
-                        if(words[word].info.dates.months[date.toISOString()] != null) {
-                            words[word].info.dates.months[date.toISOString()]++;
-                        } else {
-                            words[word].info.dates.months[date.toISOString()] = 1;
-                        }
-
-                        //dates - day
-                        date.setDate(messageDate.getDate());
-                        if(words[word].info.dates.days[date.toISOString()] != null) {
-                            words[word].info.dates.days[date.toISOString()]++;
-                        } else {
-                            words[word].info.dates.days[date.toISOString()] = 1;
-                        }
-                    }
-                });
-            });
+											//dates (just days for now)
+											let messageDate = new Date(message.createdTimestamp);
+											let date = new Date();
+											date.setTime(0);
+											date.setFullYear(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
+											words[word].info.dates.days[date.toISOString()]++;
+									}
+							});
+					});
         });
+				
     }
+		
+		console.log("6");
 
     //Parse users
 
@@ -522,7 +534,7 @@ function saveWordInfoFromLocalFiles() {
             },
             "25+": {
                 start: 25,
-                end: 999_999,
+                end: 9_999_999,
                 freq: 0
             }
         };
@@ -534,31 +546,25 @@ function saveWordInfoFromLocalFiles() {
             });
         });
         words[word].info.users = wordFreq;
-
-        console.log(word);
-        console.log(wordFreq);
-
-
     });
 
-    //words = sortWordFrequency(words);
+    console.log("land:");
+    console.log(words["land"].info);
+
     console.log("sale:");
     console.log(words["sale"].info);
     
     console.log("land:");
     console.log("  users:    " + Object.keys(words["land"].info.users).length);
     console.log("  channels: " + Object.keys(words["land"].info.channels).length);
-    console.log("  months:   " + Object.keys(words["land"].info.dates.months).length);
     console.log("  days:     " + Object.keys(words["land"].info.dates.days).length);
 
     console.log("sale:");
     console.log("  users:    " + Object.keys(words["sale"].info.users).length);
     console.log("  channels: " + Object.keys(words["sale"].info.channels).length);
-    console.log("  months:   " + Object.keys(words["sale"].info.dates.months).length);
     console.log("  days:     " + Object.keys(words["sale"].info.dates.days).length);
 
-    //totalWords = saveWordFreq(result);
-    return {totalWords: totalWords, totalMessages: totalMessages};
+    return {wordInfo: words, totalWords: totalWords, totalMessages: totalMessages};
 }
 
 
@@ -922,24 +928,40 @@ String.prototype.padding = function(n)
 
 module.exports = {
 	data: new SlashCommandBuilder()
-	  	.setName("save")
-	  	.setDescription("-")
-        .addIntegerOption(option => 
-            option.setName("ms")
-                .setDescription("-")
-                .setRequired(false)),
+		.setName("save")
+		.setDescription("-")
+		.addIntegerOption(option => 
+			option.setName("ms")
+				.setDescription("-")
+				.setRequired(false)),
 	async execute(interaction) {
-
-        await interaction.deferReply().then(async () => {
-            const result = await saveMessages(interaction);
-            console.log();
-            await interaction.followUp("RESULT: (" + result.quantity + ") message(s) fetched in (" + result.runtime + ") seconds");
-        }).catch(err => {console.error(err)});
+		const startTime = Date.now(); 
+		//Only Eggestig or BSS are authorized
+		if (interaction.user.id == "137937860400513024" || interaction.member.roles.cache.has("491195420597420033")) {
+			await interaction.deferReply().then(async () => {
+				let reply = true;
+				setTimeout(async () => {
+					if(reply) {
+						reply = false;
+						const totalTime = SETTINGS.calculateTimeDifference(startTime, Date.now());
+						await interaction.followUp("RESULT: Messages still being fetched after (" + totalTime + ") seconds...\nCheck terminal for updates");
+					}
+				}, 14 * 60 * 1000); // 14 minutes, after 15 minutes you cannot use followUp. Without using msg sending priviliges (to send a msg and then edit that one to update) I don't think it's possible to provide updates after that
+				const result = await saveMessages(interaction);
+				if(reply) {
+					console.log();
+					await interaction.followUp("RESULT: (" + result.quantity + ") message(s) fetched in (" + result.runtime + ") seconds");
+					reply = false;
+				}
+			}).catch(err => {console.error(err)});
+		} else {
+			await interaction.reply("Not authorized");
+		}
 	},
-    saveMessages,               //Fetch messages from discord API, and save them in folder
-    getChannels,                //Fetch channels that is in whitelist and not in blacklist
-    saveWordFreqFromLocalFiles, //Save word frequencies from local messages files (words are parsed)
-    sortWordFrequency,          //Sort word frequencies
-    printToTerminal,            //Print word frequencies to the terminal
-    saveWordInfoFromLocalFiles  //Save word info from word local files
+	saveMessages,               //Fetch messages from discord API, and save them in folder
+	getChannels,                //Fetch channels that is in whitelist and not in blacklist
+	saveWordFreqFromLocalFiles, //Save word frequencies from local messages files (words are parsed)
+	sortWordFrequency,          //Sort word frequencies
+	printToTerminal,            //Print word frequencies to the terminal
+	saveWordInfoFromLocalFiles  //Save word info from word local files
 };

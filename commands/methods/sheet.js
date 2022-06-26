@@ -4,6 +4,7 @@ const {google}        = require('googleapis');
 /* Local */
 const SETTINGS        = require('./misc.js');
 const { read } = require('./fileHandler.js');   
+const { channel } = require('diagnostics_channel');
 
 
 /* ---------------- */
@@ -207,7 +208,8 @@ function displayFilters() {
  * 
  * 
  */
- async function update(saveWordFreqFromLocalFiles, sortWordFrequency) {
+ async function update(saveWordFreqFromLocalFiles, sortWordFrequency, saveWordInfoFromLocalFiles, interaction) {
+	 console.log("test");
   if(SETTINGS.getSettings().spreadsheet.id == "") {
     await callApi(createSpreadsheet, "Ember Sword Messages Stats");
     SETTINGS.refreshSettings();
@@ -218,24 +220,32 @@ function displayFilters() {
     console.log();
     console.log("*******************************************************************************************");
     console.log();
-    //await updateNormal(saveWordFreqFromLocalFiles, sortWordFrequency); 
+    console.log("ignoring normal sheets");
+		//await updateNormal(saveWordFreqFromLocalFiles, sortWordFrequency); 
 
     /* Custom sheets */
-    await updateCustom(saveWordFreqFromLocalFiles, sortWordFrequency);
+    await updateCustom(saveWordFreqFromLocalFiles, sortWordFrequency, saveWordInfoFromLocalFiles, interaction);
     //console.log("Sheets have been updated!");
 
     resolve();
   });
 };
 
+//https://stackoverflow.com/questions/17428587/transposing-a-2d-array-in-javascript
+function transpose(matrix) {
+  return matrix[0].map((col, i) => matrix.map(row => row[i]));
+}
+
 /**
  * Update the Custom sheet with frequency words
  * 
  */
- async function updateCustom(saveWordFreqFromLocalFiles, sortWordFrequency) {
+ async function updateCustom(saveWordFreqFromLocalFiles, sortWordFrequency, saveWordInfoFromLocalFiles, interaction) {
   const sheets        = SETTINGS.getSettings().spreadsheet.creationSettingsSheets.display;
+  const sheetsAll        = SETTINGS.getSettings().spreadsheet.creationSettingsSheets;
   const wordFreqPath  = `${SETTINGS.getSettings().words.save.folder}/${SETTINGS.getSettings().words.save.name}.${SETTINGS.getSettings().words.save.fileType}`;
   let customWords     = [];
+  let customWordsLen  = 0;
 
   //Custom input
   await callApi(fetchAndSaveSpreadsheetInput, {name: SETTINGS.getSettings().spreadsheet.creationSettingsSheets.input.names[1]});
@@ -250,6 +260,18 @@ function displayFilters() {
 
   const freqRes = saveWordFreqFromLocalFiles();
   customWords = sortWordFrequency(JSON.parse(read(wordFreqPath), null, 2)).result.words;
+	
+	customWordsLen = customWords.length;
+	if(customWordsLen > SETTINGS.getSettings().spreadsheet.top)
+		customWordsLen = SETTINGS.getSettings().spreadsheet.top;
+
+	const wordInfoRes = saveWordInfoFromLocalFiles(interaction);
+
+	let wordInfo = [];
+	for(let i = 0; i < customWordsLen; i++) {
+		wordInfo.push(wordInfoRes.wordInfo[customWords.slice(-customWordsLen).reverse()[i].word]);
+	}
+	console.log(wordInfo);
 
   console.log(`+----------------------------+`);
   console.log(`| Total Unique Words: ${freqRes.totalUniqueWords}`.padding(28) + ` |`);
@@ -267,7 +289,125 @@ function displayFilters() {
   //Sheet Custom
   return new Promise(async (resolve, reject) => {
     console.log(Math.max(0, customWords.length - SETTINGS.getSettings().spreadsheet.top));
-    resolve(await updateHelper(customWords.slice(Math.max(0, customWords.length - SETTINGS.getSettings().spreadsheet.top)).reverse(), {id: sheets.ids[4], name: sheets.names[4]}));
+		//Custom sheet
+    await updateHelper(customWords.slice(-customWordsLen).reverse(), {id: sheets.ids[4], name: sheets.names[4]});
+		
+		let channelDataTemp     = {};
+		let channelData         = [];
+		let wordSpreadTrendData = [];
+		let userSpreadTrendData = [];
+		console.log(wordInfo[0].info);
+
+		//Sheet data
+		let temp = [];
+
+		//Word freq
+		Object.keys(wordInfo[0].info.dates.days).forEach((date) => {
+			temp.push(date);
+		});
+		temp.sort((a, b) => {
+			return (new Date(a)).getTime() - (new Date(b)).getTime();
+		});
+		for(let i = 0; i < temp.length; i++) { //Remove everything after T
+			let date = new Date(temp[i]);
+			let offset = date.getTimezoneOffset();
+			date = new Date(date.getTime() - (offset*60*1000))
+			temp[i] = date.toISOString().split('T')[0]
+		};
+		wordSpreadTrendData.push(temp);
+		
+		//User freq
+		temp = [];
+		Object.keys(wordInfo[0].info.users).forEach((userFreq) => {
+			temp.push([userFreq, wordInfo[0].info.users[userFreq].start]);
+		});
+		temp.sort((a, b) => {
+			return a[1] - b[1];
+		});
+		let tempTemp = [];
+		temp.forEach((userFreq) => {
+			tempTemp.push(userFreq[0]);
+		})
+		userSpreadTrendData.push(tempTemp);
+
+		for(let i = 0; i < wordInfo.length; i++) {
+			//Channel
+			Object.keys(wordInfo[i].info.channels).forEach((channel) => {
+				if(channelDataTemp[channel] == null) {
+					channelDataTemp[channel] = {name: wordInfo[i].info.channels[channel].name, freq: 0};
+				}
+				channelDataTemp[channel].freq += wordInfo[i].info.channels[channel].freq;
+			});
+			
+			//Word Spread
+			wordSpreadTrendDaysSortable = [];
+			Object.keys(wordInfo[i].info.dates.days).forEach((date) => {
+				wordSpreadTrendDaysSortable.push([date, wordInfo[i].info.dates.days[date]]);
+			})
+			wordSpreadTrendDaysSortable.sort((a, b) => {
+				return a[0] - b[0];
+			})
+			wordSpreadTrendDataTemp = [];
+			wordSpreadTrendDataTemp.push(customWords.slice(-customWordsLen).reverse()[i].word);
+			wordSpreadTrendDaysSortable.forEach((data) => {
+				wordSpreadTrendDataTemp.push(data[1]);
+			})
+			wordSpreadTrendData.push(wordSpreadTrendDataTemp);
+
+			//User Spread
+			userSpreadTrendSortable = [];
+			Object.keys(wordInfo[i].info.users).forEach((userFreq) => {
+				userSpreadTrendSortable.push([userFreq, wordInfo[i].info.users[userFreq].start, wordInfo[i].info.users[userFreq].freq]);
+			})
+
+			userSpreadTrendSortable.sort((a, b) => {
+				return a[1] - b[1];
+			})
+			userSpreadTrendDataTemp = [];
+			userSpreadTrendDataTemp.push(customWords.slice(-customWordsLen).reverse()[i].word);
+			
+			userSpreadTrendSortable.forEach(data => {
+				userSpreadTrendDataTemp.push(data[2]);
+			})
+			userSpreadTrendData.push(userSpreadTrendDataTemp);
+		}
+
+		//Channel
+		channelDataTempSortable = [];
+		Object.keys(channelDataTemp).forEach((channel) => {
+			channelDataTempSortable.push([channelDataTemp[channel].name, channelDataTemp[channel].freq]);
+		})
+		channelDataTempSortable.sort((a, b) => {
+			return b[1] - a[1];
+		})
+		channelData = channelDataTempSortable;
+		channelData.splice(0, 0, ["Channel", "Frequency"])
+
+		//Word Spread
+		wordSpreadTrendData[0].splice(0, 0, "Date");
+
+		//User Spread
+		userSpreadTrendData[0].splice(0, 0, "Messages from users");
+
+		//
+		wordSpreadTrendData = transpose(wordSpreadTrendData);
+		userSpreadTrendData = transpose(userSpreadTrendData);
+
+		console.log(channelData);
+		console.log(wordSpreadTrendData);
+		console.log(userSpreadTrendData);
+
+		
+    await updateHelperMisc(channelData, {id: sheetsAll.channel.ids[0], name: sheetsAll.channel.names[0]});
+
+		//Word Spread Trend sheet
+    await updateHelperMisc(wordSpreadTrendData, {id: sheetsAll.wordSpreadTrend.ids[0], name: sheetsAll.wordSpreadTrend.names[0]});
+		
+		//User Spread Trend sheet
+    await updateHelperMisc(userSpreadTrendData, {id: sheetsAll.userSpreadTrend.ids[0], name: sheetsAll.userSpreadTrend.names[0]});
+		
+		
+		resolve();
   });
 };
 
@@ -327,17 +467,22 @@ function displayFilters() {
 
     normalWordsLen = normalWords.length;
     if(normalWordsLen > SETTINGS.getSettings().spreadsheet.top)
-      normalWordsLen -= SETTINGS.getSettings().spreadsheet.top;
+      normalWordsLen = SETTINGS.getSettings().spreadsheet.top;
 
     console.log("Words len fixed: " + normalWordsLen);
 
+		
+    console.log(normalWords.slice(-normalWordsLen).reverse());
     await updateHelper(normalWords.slice(-normalWordsLen).reverse(), {id: sheets.ids[0], name: sheets.names[0]});
+    console.log("done");
 
 
     //Sheet Month
     const monthSeconds = (SETTINGS.getSettings().messages.millisecondsInSecond * SETTINGS.getSettings().timings.spreadsheet.month);
     //Get word frequencies (MONTH)
+    console.log("saving...");
     await callApi(fetchAndSaveSpreadsheetInput, {name: SETTINGS.getSettings().spreadsheet.creationSettingsSheets.input.names[0]});
+    console.log("done");
     
     SETTINGS.refreshSettings();
     SETTINGS.getSettings().userInput.whitelist.messages.intervals = [{startDate: endDate - monthSeconds, endDate: endDate}];
@@ -371,7 +516,7 @@ function displayFilters() {
 
     normalWordsLen = normalWords.length;
     if(normalWordsLen > SETTINGS.getSettings().spreadsheet.top)
-      normalWordsLen -= SETTINGS.getSettings().spreadsheet.top;
+      normalWordsLen = SETTINGS.getSettings().spreadsheet.top;
 
     console.log("Words len fixed: " + normalWordsLen);
 
@@ -413,7 +558,7 @@ function displayFilters() {
 
     normalWordsLen = normalWords.length;
     if(normalWordsLen > SETTINGS.getSettings().spreadsheet.top)
-      normalWordsLen -= SETTINGS.getSettings().spreadsheet.top;
+      normalWordsLen = SETTINGS.getSettings().spreadsheet.top;
 
     await updateHelper(normalWords.slice(-normalWordsLen).reverse(), {id: sheets.ids[2], name: sheets.names[2]});
 
@@ -453,7 +598,7 @@ function displayFilters() {
 
     normalWordsLen = normalWords.length;
     if(normalWordsLen > SETTINGS.getSettings().spreadsheet.top)
-      normalWordsLen -= SETTINGS.getSettings().spreadsheet.top;
+      normalWordsLen = SETTINGS.getSettings().spreadsheet.top;
 
     await updateHelper(normalWords.slice(-normalWordsLen).reverse(), {id: sheets.ids[3], name: sheets.names[3]});
 
@@ -471,8 +616,22 @@ function displayFilters() {
  */
 async function updateHelper(words, sheetInfo) {
   return new Promise(async (resolve, reject) => {
-    await callApi(clearMessages, {sheetName: sheetInfo.name}).then(async () => {
-        resolve(await callApi(updateMessages, {words: words, sheetName: sheetInfo.name}));
+    await callApi(clearMessages, {sheetName: sheetInfo.name, range: SETTINGS.getSettings().spreadsheet.dataRange}).then(async () => {
+			resolve(await callApi(updateMessages, {words: words, sheetName: sheetInfo.name}));
+    });
+  });
+}
+
+/**
+ * Send word frequencies to sheet
+ * @param {Object[]} data data to send to the sheet
+ * @param {Object} sheetInfo Sheet ID and sheet name 
+ * 
+ */
+async function updateHelperMisc(data, sheetInfo) {
+  return new Promise(async (resolve, reject) => {
+    await callApi(clearMessages, {sheetName: sheetInfo.name, range: "A1:Z"}).then(async () => {
+			resolve(await callApi(updateData, {info: data, sheetName: sheetInfo.name}));
     });
   });
 }
@@ -492,6 +651,7 @@ async function updateHelper(words, sheetInfo) {
 async function updateMessages(auth, data) {
     const spreadsheetId           = SETTINGS.getSettings().spreadsheet.id;
     const dataRange               = SETTINGS.getSettings().spreadsheet.dataRange;
+		console.log(dataRange)
     const valueInputOption        = SETTINGS.getSettings().spreadsheet.updateRequest.valueInputOption;
     const includeValuesInResponse = SETTINGS.getSettings().spreadsheet.updateRequest.includeValuesInResponse
     const majorDimension          = SETTINGS.getSettings().spreadsheet.updateRequest.majorDimension;
@@ -512,6 +672,56 @@ async function updateMessages(auth, data) {
               "majorDimension": majorDimension,
               "range":          data.sheetName + "!" + dataRange,
               "values":         parseWords(data.words)
+          },
+          auth: auth
+      };
+			console.log(data.sheetName + "!" + dataRange)
+      try {
+        const sheets = google.sheets({version: version, auth});
+        sheets.spreadsheets.values.update(request, (err, res) => {
+            if (err) {
+              console.error('The API returned an error: ' + err);
+              reject(false);
+            }
+            resolve(true);
+        });   
+      } catch (err) {
+        console.error(err);
+        reject(false);
+      }
+    });
+}
+
+/**
+ * API CALL: Update messages in spreadsheet
+ * 
+ * @param {google.auth.OAuth2} auth Authorized OAuth2 client
+ * @param {Object} data Data object with the data and the sheet to update
+ * @returns {Promise<boolean>} true if resolved, false if rejected
+ */
+async function updateData(auth, data) {
+    const spreadsheetId           = SETTINGS.getSettings().spreadsheet.id;
+    const dataRange               = "A1:Z";
+    const valueInputOption        = SETTINGS.getSettings().spreadsheet.updateRequest.valueInputOption;
+    const includeValuesInResponse = SETTINGS.getSettings().spreadsheet.updateRequest.includeValuesInResponse
+    const majorDimension          = SETTINGS.getSettings().spreadsheet.updateRequest.majorDimension;
+    const version                 = SETTINGS.getSettings().spreadsheet.version;
+    
+    return new Promise(async (resolve, reject) => {
+      if(!data || !data.info || !data.sheetName) {
+        console.error("No data, word(s), or sheet provided, returning.");
+        resolve(false);
+      }
+      
+      const request = {
+          spreadsheetId:            spreadsheetId,
+          range:                    data.sheetName + "!" + dataRange,
+          valueInputOption:         valueInputOption,
+          includeValuesInResponse:  includeValuesInResponse,
+          resource: {
+              "majorDimension": majorDimension,
+              "range":          data.sheetName + "!" + dataRange,
+              "values":         data.info
           },
           auth: auth
       };
@@ -541,7 +751,7 @@ async function updateMessages(auth, data) {
 async function clearMessages(auth, data) {
     const request = {
         spreadsheetId: SETTINGS.getSettings().spreadsheet.id,
-        range: `${data.sheetName}!${SETTINGS.getSettings().spreadsheet.dataRange}`,
+        range: `${data.sheetName}!${data.range}`,
         auth: auth,
       };
     
@@ -1442,7 +1652,7 @@ function parseInput(input) {
           "intervals": [
             {
               "startDate": 0,
-              "endDate": 4800000000000 // 2122-02-08T13:20:00.000Z
+              "endDate": SETTINGS.getSettings().endDateDefault // 2122-02-08T13:20:00.000Z
             }
           ],
           "authorId": []
@@ -1526,7 +1736,7 @@ function parseInput(input) {
     whitelistLoops = input[5].length;
 
   for(let i = 0; i < whitelistLoops; i++) {
-    let interval = {startDate: 0, endDate: 4800000000000}; // 2122-02-08T13:20:00.000Z
+    let interval = {startDate: 0, endDate: SETTINGS.getSettings().endDateDefault}; // 2122-02-08T13:20:00.000Z
     if(input[4] && input[4][i] && input[4][i] > 0) 
       interval.startDate = input[4][i];
 
@@ -1537,7 +1747,7 @@ function parseInput(input) {
   }
 
   if(whitelistIntervals.length == 0)
-    whitelistIntervals = [{startDate: 0, endDate: 4800000000000}]; // 2122-02-08T13:20:00.000Z
+    whitelistIntervals = [{startDate: 0, endDate: SETTINGS.getSettings().endDateDefault}]; // 2122-02-08T13:20:00.000Z
 
   settings.userInput.whitelist.messages.intervals = whitelistIntervals;
 
@@ -1605,7 +1815,7 @@ function parseInput(input) {
     blacklistLoops = input[12].length;
 
   for(let i = 0; i < blacklistLoops; i++) {
-    let interval = {startDate: 0, endDate: 4800000000000}; // 2122-02-08T13:20:00.000Z
+    let interval = {startDate: 0, endDate: SETTINGS.getSettings().endDateDefault}; // 2122-02-08T13:20:00.000Z
 
     if(input[11] && input[11][i] && input[11][i] > 0) 
       interval.startDate = input[11][i];
